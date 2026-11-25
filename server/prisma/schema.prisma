@@ -1,0 +1,168 @@
+// Khidma data model.
+// Money is stored as integer halalas (1 SAR = 100 halalas) to avoid floating-point rounding errors.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  TECHNICIAN
+  ADMIN
+}
+
+enum Locale {
+  AR
+  EN
+}
+
+enum BookingStatus {
+  PENDING // created by the customer, waiting for a technician
+  ACCEPTED // a technician claimed it
+  EN_ROUTE // technician is driving to the customer
+  IN_PROGRESS // work has started on site
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  INITIATED
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique // normalized E.164, e.g. +966512345678
+  name      String?
+  role      Role     @default(CUSTOMER)
+  locale    Locale   @default(AR)
+  pushToken String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  technician         TechnicianProfile?
+  customerBookings   Booking[]          @relation("CustomerBookings")
+  technicianBookings Booking[]          @relation("TechnicianBookings")
+  messages           Message[]
+}
+
+// One-time passwords are stored as HMAC hashes, never in plain text.
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+model TechnicianProfile {
+  userId         String    @id
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio            String?
+  isApproved     Boolean   @default(false)
+  isAvailable    Boolean   @default(false)
+  lastLat        Float?
+  lastLng        Float?
+  lastLocationAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  services Service[]
+}
+
+model Service {
+  id               String  @id @default(cuid())
+  slug             String  @unique
+  nameEn           String
+  nameAr           String
+  descriptionEn    String
+  descriptionAr    String
+  icon             String
+  basePriceHalalas Int
+  sortOrder        Int     @default(0) // position in the app's catalog, lowest first
+  isActive         Boolean @default(true)
+
+  technicians TechnicianProfile[]
+  bookings    Booking[]
+}
+
+model Booking {
+  id           String        @id @default(cuid())
+  customerId   String
+  customer     User          @relation("CustomerBookings", fields: [customerId], references: [id])
+  technicianId String?
+  technician   User?         @relation("TechnicianBookings", fields: [technicianId], references: [id])
+  serviceId    String
+  service      Service       @relation(fields: [serviceId], references: [id])
+  status       BookingStatus @default(PENDING)
+  scheduledAt  DateTime
+  addressLine  String
+  lat          Float
+  lng          Float
+  serviceArea  String // city id from src/lib/service-areas.ts, e.g. "riyadh"
+  notes        String?
+  priceHalalas Int // snapshot of the service price at booking time
+  cancelReason String?
+  acceptedAt   DateTime?
+  enRouteAt    DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  payment  Payment?
+  messages Message[]
+
+  @@index([status, serviceId])
+  @@index([serviceArea, createdAt])
+  @@index([customerId])
+  @@index([technicianId])
+}
+
+// One payment per booking. A failed or expired checkout is retried by creating a new
+// Moyasar invoice for the same row, so the booking always points at its latest attempt.
+model Payment {
+  id                String        @id @default(cuid())
+  bookingId         String        @unique
+  booking           Booking       @relation(fields: [bookingId], references: [id])
+  amountHalalas     Int
+  currency          String        @default("SAR")
+  status            PaymentStatus @default(INITIATED)
+  provider          String        @default("moyasar") // "moyasar", or "simulated" in development
+  providerInvoiceId String?       @unique // the hosted checkout the customer pays on
+  providerPaymentId String?       @unique // the successful payment attempt on that invoice
+  checkoutUrl       String?
+  returnUrl         String? // where to send the customer back to the app afterwards (validated)
+  method            String? // mada, visa, mastercard, amex, applepay, stcpay
+  failureMessage    String?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([senderId, createdAt]) // per-sender rate limit
+}

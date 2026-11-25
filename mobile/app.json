@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "Khidma",
+    "slug": "khidma",
+    "scheme": "khidma",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.khidma.mobile"
+    },
+    "android": {
+      "package": "app.khidma.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B5D4B",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": [
+              "ar",
+              "en"
+            ],
+            "android": [
+              "ar",
+              "en"
+            ]
+          }
+        }
+      ],
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Khidma uses your location to fill in your booking address and, for technicians, to show customers where you are while you're on the way to them."
+        }
+      ],
+      "expo-asset",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#0B5D4B",
+          "defaultChannel": "default"
+        }
+      ],
+      "@rnmapbox/maps"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
